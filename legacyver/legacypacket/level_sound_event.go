@@ -35,6 +35,9 @@ type LevelSoundEvent struct {
 	// different sessions of the same world, but most servers simply fill the runtime ID of the entity out for
 	// this field.
 	EntityUniqueID int64
+	// FireAtPosition is the position in the same world at which the event should fire. If this is not present,
+	// the position entity will be used instead.
+	FireAtPosition protocol.Optional[mgl32.Vec3]
 }
 
 // ID ...
@@ -52,4 +55,34 @@ func (pk *LevelSoundEvent) Marshal(io protocol.IO) {
 	if proto.IsProtoGTE(io, proto.ID786) {
 		io.Int64(&pk.EntityUniqueID)
 	}
+	if proto.IsProtoGTE(io, proto.ID975) {
+		protocol.OptionalFunc(io, &pk.FireAtPosition, io.Vec3)
+	}
+}
+
+// ToLatest ...
+func (pk *LevelSoundEvent) ToLatest() *packet.LevelSoundEvent {
+	return &packet.LevelSoundEvent{
+		SoundType:             pk.SoundType,
+		Position:              pk.Position,
+		ExtraData:             pk.ExtraData,
+		EntityType:            pk.EntityType,
+		BabyMob:               pk.BabyMob,
+		DisableRelativeVolume: pk.DisableRelativeVolume,
+		EntityUniqueID:        pk.EntityUniqueID,
+		FireAtPosition:        pk.FireAtPosition,
+	}
+}
+
+// FromLatest ...
+func (pk *LevelSoundEvent) FromLatest(latest *packet.LevelSoundEvent) *LevelSoundEvent {
+	pk.SoundType = latest.SoundType
+	pk.Position = latest.Position
+	pk.ExtraData = latest.ExtraData
+	pk.EntityType = latest.EntityType
+	pk.BabyMob = latest.BabyMob
+	pk.DisableRelativeVolume = latest.DisableRelativeVolume
+	pk.EntityUniqueID = latest.EntityUniqueID
+	pk.FireAtPosition = latest.FireAtPosition
+	return pk
 }

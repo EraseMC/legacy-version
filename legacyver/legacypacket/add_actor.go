@@ -44,7 +44,7 @@ type AddActor struct {
 	// EntityMetadata is a map of entity metadata, which includes flags and data properties that alter in
 	// particular the way the entity looks. Flags include ones such as 'on fire' and 'sprinting'.
 	// The metadata values are indexed by their property key.
-	EntityMetadata map[uint32]any
+	EntityMetadata protocol.EntityMetadata
 	// EntityProperties is a list of properties that the entity inhibits. These properties define and alter specific
 	// attributes of the entity.
 	EntityProperties protocol.EntityProperties
@@ -73,4 +73,48 @@ func (pk *AddActor) Marshal(io protocol.IO) {
 	io.EntityMetadata(&pk.EntityMetadata)
 	protocol.Single(io, &pk.EntityProperties)
 	protocol.Slice(io, &pk.EntityLinks)
+}
+
+// ToLatest ...
+func (pk *AddActor) ToLatest() *packet.AddActor {
+	entityLinks := make([]protocol.EntityLink, len(pk.EntityLinks))
+	for i, link := range pk.EntityLinks {
+		entityLinks[i] = link.ToLatest()
+	}
+	return &packet.AddActor{
+		EntityUniqueID:   pk.EntityUniqueID,
+		EntityRuntimeID:  pk.EntityRuntimeID,
+		EntityType:       pk.EntityType,
+		Position:         pk.Position,
+		Velocity:         pk.Velocity,
+		Pitch:            pk.Pitch,
+		Yaw:              pk.Yaw,
+		HeadYaw:          pk.HeadYaw,
+		BodyYaw:          pk.BodyYaw,
+		Attributes:       pk.Attributes,
+		EntityMetadata:   pk.EntityMetadata,
+		EntityProperties: pk.EntityProperties,
+		EntityLinks:      entityLinks,
+	}
+}
+
+// FromLatest ...
+func (pk *AddActor) FromLatest(latest *packet.AddActor) *AddActor {
+	pk.EntityUniqueID = latest.EntityUniqueID
+	pk.EntityRuntimeID = latest.EntityRuntimeID
+	pk.EntityType = latest.EntityType
+	pk.Position = latest.Position
+	pk.Velocity = latest.Velocity
+	pk.Pitch = latest.Pitch
+	pk.Yaw = latest.Yaw
+	pk.HeadYaw = latest.HeadYaw
+	pk.BodyYaw = latest.BodyYaw
+	pk.Attributes = latest.Attributes
+	pk.EntityMetadata = latest.EntityMetadata
+	pk.EntityProperties = latest.EntityProperties
+	pk.EntityLinks = make([]proto.EntityLink, len(latest.EntityLinks))
+	for i, link := range latest.EntityLinks {
+		pk.EntityLinks[i] = (&proto.EntityLink{}).FromLatest(link)
+	}
+	return pk
 }

@@ -19,7 +19,7 @@ type CommandOutput struct {
 	CommandOrigin protocol.CommandOrigin
 	// OutputType specifies the type of output that is sent. The OutputType sent by vanilla games appears to
 	// be 3, which seems to work.
-	OutputType string
+	OutputType byte
 	// SuccessCount is the amount of times that a command was executed successfully as a result of the command
 	// that was requested. For servers, this is usually a rather meaningless fields, but for vanilla, this is
 	// applicable for commands created with Functions.
@@ -39,18 +39,18 @@ func (*CommandOutput) ID() uint32 {
 func (pk *CommandOutput) Marshal(io protocol.IO) {
 	proto.CommandOriginData(io, &pk.CommandOrigin)
 	if proto.IsProtoGTE(io, proto.ID898) {
-		io.String(&pk.OutputType)
+		outputTypeStr := commandOutputTypeToString(pk.OutputType)
+		io.String(&outputTypeStr)
+		pk.OutputType = commandOutputTypeFromString(outputTypeStr)
 		io.Uint32(&pk.SuccessCount)
 	} else {
-		v := LegacyCommandOutputType(pk.OutputType)
-		io.Uint8(&v)
-		pk.OutputType = LatestCommandOutputType(v)
+		io.Uint8(&pk.OutputType)
 		io.Varuint32(&pk.SuccessCount)
 	}
 	protocol.Slice(io, &pk.OutputMessages)
 	if proto.IsProtoGTE(io, proto.ID898) {
 		protocol.OptionalFunc(io, &pk.DataSet, io.String)
-	} else if pk.OutputType == "dataset" {
+	} else if pk.OutputType == packet.CommandOutputTypeDataSet {
 		v, _ := pk.DataSet.Value()
 		io.String(&v)
 		if v != "" {
@@ -61,26 +61,26 @@ func (pk *CommandOutput) Marshal(io protocol.IO) {
 	}
 }
 
-var legacyCommandOutputTypeMap = map[byte]string{
-	0: "none",       // packet.CommandOutputTypeNone
-	1: "lastoutput", // packet.CommandOutputTypeLastOutput
-	2: "silent",     // packet.CommandOutputTypeSilent
-	3: "alloutput",  // packet.CommandOutputTypeAllOutput
-	4: "dataset",    // packet.CommandOutputTypeDataSet
+var commandOutputTypes = []string{
+	"none",
+	"lastoutput",
+	"silent",
+	"alloutput",
+	"dataset",
 }
 
-func LegacyCommandOutputType(outputType string) byte {
-	for k, v := range legacyCommandOutputTypeMap {
-		if v == outputType {
-			return k
+func commandOutputTypeToString(x byte) string {
+	if int(x) < len(commandOutputTypes) {
+		return commandOutputTypes[x]
+	}
+	return "unknown"
+}
+
+func commandOutputTypeFromString(x string) byte {
+	for i, v := range commandOutputTypes {
+		if v == x {
+			return byte(i)
 		}
 	}
-	return 3 // Default to all output.
-}
-
-func LatestCommandOutputType(outputType byte) string {
-	if v, ok := legacyCommandOutputTypeMap[outputType]; ok {
-		return v
-	}
-	return "alloutput" // packet.CommandOutputTypeAllOutput
+	return 0 // default to "none"
 }

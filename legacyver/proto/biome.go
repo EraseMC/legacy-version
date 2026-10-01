@@ -151,6 +151,8 @@ type BiomeChunkGeneration struct {
 	LegacyRules protocol.Optional[[]protocol.BiomeConditionalTransformation]
 	// ReplacementsData is a list of biome replacement data.
 	ReplacementsData protocol.Optional[[]protocol.BiomeReplacementData]
+	// VillageType is the optional village type for the biome's chunk generation.
+	VillageType protocol.Optional[uint8]
 }
 
 func (x *BiomeChunkGeneration) Marshal(r protocol.IO) {
@@ -178,6 +180,9 @@ func (x *BiomeChunkGeneration) Marshal(r protocol.IO) {
 		protocol.OptionalFunc(r, &x.ReplacementsData, func(s *[]protocol.BiomeReplacementData) {
 			protocol.Slice(r, s)
 		})
+	}
+	if IsProtoGTE(r, ID924) {
+		protocol.OptionalFunc(r, &x.VillageType, r.Uint8)
 	}
 }
 

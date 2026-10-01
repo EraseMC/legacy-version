@@ -101,41 +101,46 @@ type UseItemTransactionData struct {
 	// ClientPrediction is the client's prediction on the output of the transaction. It is one of the client
 	// prediction found in the constants above.
 	ClientPrediction uint32
+	// ClientCooldownState is the client's cooldown state for the item used. It is one of the
+	// ClientCooldownState constants above.
+	ClientCooldownState byte
 }
 
 func (x *UseItemTransactionData) FromLatest(l *protocol.UseItemTransactionData) *UseItemTransactionData {
 	return &UseItemTransactionData{
-		LegacyRequestID:    l.LegacyRequestID,
-		LegacySetItemSlots: l.LegacySetItemSlots,
-		Actions:            l.Actions,
-		ActionType:         l.ActionType,
-		TriggerType:        l.TriggerType,
-		BlockPosition:      l.BlockPosition,
-		BlockFace:          l.BlockFace,
-		HotBarSlot:         l.HotBarSlot,
-		HeldItem:           l.HeldItem,
-		Position:           l.Position,
-		ClickedPosition:    l.ClickedPosition,
-		BlockRuntimeID:     l.BlockRuntimeID,
-		ClientPrediction:   l.ClientPrediction,
+		LegacyRequestID:     l.LegacyRequestID,
+		LegacySetItemSlots:  l.LegacySetItemSlots,
+		Actions:             l.Actions,
+		ActionType:          l.ActionType,
+		TriggerType:         l.TriggerType,
+		BlockPosition:       l.BlockPosition,
+		BlockFace:           l.BlockFace,
+		HotBarSlot:          l.HotBarSlot,
+		HeldItem:            l.HeldItem,
+		Position:            l.Position,
+		ClickedPosition:     l.ClickedPosition,
+		BlockRuntimeID:      l.BlockRuntimeID,
+		ClientPrediction:    l.ClientPrediction,
+		ClientCooldownState: l.ClientCooldownState,
 	}
 }
 
 func (x *UseItemTransactionData) ToLatest() *protocol.UseItemTransactionData {
 	return &protocol.UseItemTransactionData{
-		LegacyRequestID:    x.LegacyRequestID,
-		LegacySetItemSlots: x.LegacySetItemSlots,
-		Actions:            x.Actions,
-		ActionType:         x.ActionType,
-		TriggerType:        x.TriggerType,
-		BlockPosition:      x.BlockPosition,
-		BlockFace:          x.BlockFace,
-		HotBarSlot:         x.HotBarSlot,
-		HeldItem:           x.HeldItem,
-		Position:           x.Position,
-		ClickedPosition:    x.ClickedPosition,
-		BlockRuntimeID:     x.BlockRuntimeID,
-		ClientPrediction:   x.ClientPrediction,
+		LegacyRequestID:     x.LegacyRequestID,
+		LegacySetItemSlots:  x.LegacySetItemSlots,
+		Actions:             x.Actions,
+		ActionType:          x.ActionType,
+		TriggerType:         x.TriggerType,
+		BlockPosition:       x.BlockPosition,
+		BlockFace:           x.BlockFace,
+		HotBarSlot:          x.HotBarSlot,
+		HeldItem:            x.HeldItem,
+		Position:            x.Position,
+		ClickedPosition:     x.ClickedPosition,
+		BlockRuntimeID:      x.BlockRuntimeID,
+		ClientPrediction:    x.ClientPrediction,
+		ClientCooldownState: x.ClientCooldownState,
 	}
 }
 
@@ -145,7 +150,11 @@ func (x *UseItemTransactionData) Marshal(r protocol.IO) {
 	if IsProtoGTE(r, ID712) {
 		r.Varuint32(&x.TriggerType)
 	}
-	r.UBlockPos(&x.BlockPosition)
+	if IsProtoGTE(r, ID944) {
+		r.BlockPos(&x.BlockPosition)
+	} else {
+		UBlockPos(r, &x.BlockPosition)
+	}
 	r.Varint32(&x.BlockFace)
 	r.Varint32(&x.HotBarSlot)
 	r.ItemInstance(&x.HeldItem)
@@ -154,5 +163,8 @@ func (x *UseItemTransactionData) Marshal(r protocol.IO) {
 	r.Varuint32(&x.BlockRuntimeID)
 	if IsProtoGTE(r, ID712) {
 		r.Varuint32(&x.ClientPrediction)
+	}
+	if IsProtoGTE(r, ID944) {
+		r.Uint8(&x.ClientCooldownState)
 	}
 }

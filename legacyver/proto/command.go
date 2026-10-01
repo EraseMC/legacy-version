@@ -1,49 +1,10 @@
 package proto
 
 import (
-	"math"
-
 	"github.com/akmalfairuz/legacy-version/internal/typeconf"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
+	"math"
 )
-
-func legacyCommandPermToNew(x byte) string {
-	switch x {
-	case protocol.CommandPermissionLevelAny:
-		return "any"
-	case protocol.CommandPermissionLevelGameDirectors:
-		return "gamedirectors"
-	case protocol.CommandPermissionLevelAdmin:
-		return "admin"
-	case protocol.CommandPermissionLevelHost:
-		return "host"
-	case protocol.CommandPermissionLevelOwner:
-		return "owner"
-	case protocol.CommandPermissionLevelInternal:
-		return "internal"
-	default:
-		return "unknown"
-	}
-}
-
-func newCommandPermToLegacy(x string) byte {
-	switch x {
-	case "any":
-		return protocol.CommandPermissionLevelAny
-	case "gamedirectors":
-		return protocol.CommandPermissionLevelGameDirectors
-	case "admin":
-		return protocol.CommandPermissionLevelAdmin
-	case "host":
-		return protocol.CommandPermissionLevelHost
-	case "owner":
-		return protocol.CommandPermissionLevelOwner
-	case "internal":
-		return protocol.CommandPermissionLevelInternal
-	default:
-		return protocol.CommandPermissionLevelAny
-	}
-}
 
 // Command holds the data that a command requires to be shown to a player client-side. The command is shown in
 // the /help command and auto-completed using this data.
@@ -59,7 +20,7 @@ type Command struct {
 	// PermissionLevel is the command permission level that the player required to execute this command. The
 	// field no longer seems to serve a purpose, as the client does not handle the execution of commands
 	// anymore: The permissions should be checked server-side.
-	PermissionLevel string
+	PermissionLevel byte
 	// AliasesOffset is the offset to a CommandEnum that holds the values that
 	// should be used as aliases for this command.
 	AliasesOffset uint32
@@ -75,13 +36,12 @@ func (c *Command) Marshal(r protocol.IO) {
 	r.String(&c.Name)
 	r.String(&c.Description)
 	r.Uint16(&c.Flags)
-
 	if IsProtoGTE(r, ID898) {
-		r.String(&c.PermissionLevel)
+		permissionLevel := commandPermissionToString(c.PermissionLevel)
+		r.String(&permissionLevel)
+		c.PermissionLevel = commandPermissionFromString(permissionLevel)
 	} else {
-		permLevel := byte(0)
-		r.Uint8(&permLevel)
-		c.PermissionLevel = "any"
+		r.Uint8(&c.PermissionLevel)
 	}
 	r.Uint32(&c.AliasesOffset)
 	if IsProtoGTE(r, ID898) {
@@ -99,7 +59,7 @@ func (c *Command) ToLatest() protocol.Command {
 		Name:                     c.Name,
 		Description:              c.Description,
 		Flags:                    c.Flags,
-		PermissionLevel:          newCommandPermToLegacy(c.PermissionLevel),
+		PermissionLevel:          c.PermissionLevel,
 		AliasesOffset:            c.AliasesOffset,
 		ChainedSubcommandOffsets: c.ChainedSubcommandOffsets,
 		Overloads:                c.Overloads,
@@ -110,7 +70,7 @@ func (c *Command) FromLatest(latest protocol.Command) Command {
 	c.Name = latest.Name
 	c.Description = latest.Description
 	c.Flags = latest.Flags
-	c.PermissionLevel = legacyCommandPermToNew(latest.PermissionLevel)
+	c.PermissionLevel = latest.PermissionLevel
 	c.AliasesOffset = latest.AliasesOffset
 	c.ChainedSubcommandOffsets = latest.ChainedSubcommandOffsets
 	c.Overloads = latest.Overloads
@@ -252,66 +212,47 @@ func (x *ChainedSubcommandValue) FromLatest(latest protocol.ChainedSubcommandVal
 	return *x
 }
 
-var (
-	commandOrigins = []string{
-		"player",                   // protocol.CommandOriginPlayer
-		"commandblock",             // protocol.CommandOriginBlock
-		"minecartcommandblock",     // protocol.CommandOriginMinecartBlock
-		"devconsole",               // protocol.CommandOriginDevConsole
-		"test",                     // protocol.CommandOriginTest
-		"automationplayer",         // protocol.CommandOriginAutomationPlayer
-		"clientautomation",         // protocol.CommandOriginClientAutomation
-		"dedicatedserver",          // protocol.CommandOriginDedicatedServer
-		"entity",                   // protocol.CommandOriginEntity
-		"virtual",                  // protocol.CommandOriginVirtual
-		"gameargument",             // protocol.CommandOriginGameArgument
-		"entityserver",             // protocol.CommandOriginEntityServer
-		"precompiled",              // protocol.CommandOriginPrecompiled
-		"gamedirectorentityserver", // protocol.CommandOriginGameDirectorEntityServer
-		"scripting",                // protocol.CommandOriginScript
-		"executecontext",           // protocol.CommandOriginExecutor
-	}
-	originToLegacyMap = map[string]uint32{
-		"player":                   protocol.CommandOriginPlayer,
-		"commandblock":             protocol.CommandOriginBlock,
-		"minecartcommandblock":     protocol.CommandOriginMinecartBlock,
-		"devconsole":               protocol.CommandOriginDevConsole,
-		"test":                     protocol.CommandOriginTest,
-		"automationplayer":         protocol.CommandOriginAutomationPlayer,
-		"clientautomation":         protocol.CommandOriginClientAutomation,
-		"dedicatedserver":          protocol.CommandOriginDedicatedServer,
-		"entity":                   protocol.CommandOriginEntity,
-		"virtual":                  protocol.CommandOriginVirtual,
-		"gameargument":             protocol.CommandOriginGameArgument,
-		"entityserver":             protocol.CommandOriginEntityServer,
-		"precompiled":              protocol.CommandOriginPrecompiled,
-		"gamedirectorentityserver": protocol.CommandOriginGameDirectorEntityServer,
-		"scripting":                protocol.CommandOriginScript,
-		"executecontext":           protocol.CommandOriginExecutor,
-	}
-)
+var commandOrigins = []string{
+	"player",
+	"commandblock",
+	"minecartcommandblock",
+	"devconsole",
+	"test",
+	"automationplayer",
+	"clientautomation",
+	"dedicatedserver",
+	"entity",
+	"virtual",
+	"gameargument",
+	"entityserver",
+	"precompiled",
+	"gamedirectorentityserver",
+	"scripting",
+	"executecontext",
+}
 
-func commandOriginFromLegacy(legacy uint32) string {
+func commandOriginToString(legacy uint32) string {
 	if int(legacy) < len(commandOrigins) {
 		return commandOrigins[legacy]
 	}
-	return "player" // default to protocol.CommandOriginPlayer
+	return "player" // Default to player.
 }
 
-func commandOriginToLegacy(origin string) uint32 {
-	legacy, ok := originToLegacyMap[origin]
-	if ok {
-		return legacy
+func commandOriginFromString(origin string) uint32 {
+	for k, v := range commandOrigins {
+		if v == origin {
+			return uint32(k)
+		}
 	}
-	return protocol.CommandOriginPlayer
+	return 0 // Default to player.
 }
 
 // CommandOriginData reads/writes a CommandOrigin x using IO r.
 func CommandOriginData(r protocol.IO, x *protocol.CommandOrigin) {
-	originV898 := commandOriginFromLegacy(x.Origin)
 	if IsProtoGTE(r, ID898) {
-		r.String(&originV898)
-		x.Origin = commandOriginToLegacy(originV898)
+		originStr := commandOriginToString(x.Origin)
+		r.String(&originStr)
+		x.Origin = commandOriginFromString(originStr)
 	} else {
 		r.Varuint32(&x.Origin)
 	}
@@ -368,4 +309,29 @@ func (x *CommandOutputMessage) FromLatest(latest protocol.CommandOutputMessage) 
 	x.Message = latest.Message
 	x.Parameters = latest.Parameters
 	return *x
+}
+
+var commandPermissionLevels = []string{
+	"any",
+	"gamedirectors",
+	"admin",
+	"host",
+	"owner",
+	"internal",
+}
+
+func commandPermissionToString(x byte) string {
+	if int(x) < len(commandPermissionLevels) {
+		return commandPermissionLevels[x]
+	}
+	return "any" // Default to any.
+}
+
+func commandPermissionFromString(s string) byte {
+	for k, v := range commandPermissionLevels {
+		if v == s {
+			return byte(k)
+		}
+	}
+	return byte(0) // Default to any.
 }

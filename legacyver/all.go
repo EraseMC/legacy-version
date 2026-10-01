@@ -21,6 +21,9 @@ var (
 // must be set to true if you're using Dragonfly.
 func All(dragonflyMapping bool) []minecraft.Protocol {
 	return []minecraft.Protocol{
+		New944(dragonflyMapping),
+		New924(dragonflyMapping),
+		New898(dragonflyMapping),
 		New860(dragonflyMapping),
 		New859(dragonflyMapping),
 		New844(dragonflyMapping),

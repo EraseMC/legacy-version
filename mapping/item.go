@@ -22,6 +22,7 @@ type Item interface {
 	Air() int32
 	ItemVersion() uint16
 	ItemEntries() []ItemEntry
+	Shield() int32
 }
 
 type ItemEntry struct {
@@ -46,6 +47,7 @@ type DefaultItemMapping struct {
 	itemEntries []ItemEntry
 
 	airRID      int32
+	shieldRID   int32
 	itemVersion uint16
 }
 
@@ -55,7 +57,7 @@ func NewItemMapping(requiredItemList []byte, itemVersion uint16) *DefaultItemMap
 	itemRuntimeIDToVersion := make(map[int32]uint8)
 	itemRuntimeIDToData := make(map[int32]map[string]any)
 	itemEntries := make([]ItemEntry, 0, 1600)
-	var airRID *int32
+	var airRID, shieldRID *int32
 
 	var m map[string]struct {
 		RuntimeID      int16  `json:"runtime_id"`
@@ -71,6 +73,8 @@ func NewItemMapping(requiredItemList []byte, itemVersion uint16) *DefaultItemMap
 		rid := int32(data.RuntimeID)
 		if name == "minecraft:air" {
 			airRID = &rid
+		} else if name == "minecraft:shield" {
+			shieldRID = &rid
 		}
 
 		entry := ItemEntry{
@@ -102,8 +106,11 @@ func NewItemMapping(requiredItemList []byte, itemVersion uint16) *DefaultItemMap
 	if airRID == nil {
 		panic("couldn't find air")
 	}
+	if shieldRID == nil {
+		panic("couldn't find shield")
+	}
 
-	return &DefaultItemMapping{itemRuntimeIDsToNames: itemRuntimeIDsToNames, itemNamesToRuntimeIDs: itemNamesToRuntimeIDs, itemRuntimeIDToVersion: itemRuntimeIDToVersion, airRID: *airRID, itemVersion: itemVersion, itemRuntimeIDToData: itemRuntimeIDToData, itemEntries: itemEntries}
+	return &DefaultItemMapping{itemRuntimeIDsToNames: itemRuntimeIDsToNames, itemNamesToRuntimeIDs: itemNamesToRuntimeIDs, itemRuntimeIDToVersion: itemRuntimeIDToVersion, airRID: *airRID, itemVersion: itemVersion, itemRuntimeIDToData: itemRuntimeIDToData, itemEntries: itemEntries, shieldRID: *shieldRID}
 }
 
 func (m *DefaultItemMapping) ItemRuntimeIDToName(runtimeID int32) (name string, found bool) {
@@ -160,14 +167,10 @@ func (m *DefaultItemMapping) RegisterEntryRID(name string, rid int32, version ui
 }
 
 func (m *DefaultItemMapping) Air() int32 {
-	defer m.mu.Unlock()
-	m.mu.Lock()
 	return m.airRID
 }
 
 func (m *DefaultItemMapping) ItemVersion() uint16 {
-	defer m.mu.Unlock()
-	m.mu.Lock()
 	return m.itemVersion
 }
 
@@ -177,4 +180,8 @@ func (m *DefaultItemMapping) ItemEntries() []ItemEntry {
 	entries := make([]ItemEntry, len(m.itemEntries))
 	copy(entries, m.itemEntries)
 	return entries
+}
+
+func (m *DefaultItemMapping) Shield() int32 {
+	return m.shieldRID
 }

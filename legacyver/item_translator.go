@@ -48,6 +48,14 @@ type ItemTranslator interface {
 	DowngradeItemEntries(entries []proto.ItemEntry) []proto.ItemEntry
 	// UpgradeItemEntries ...
 	UpgradeItemEntries(entries []proto.ItemEntry) []proto.ItemEntry
+	// VanillaItemEntries ...
+	VanillaItemEntries() []proto.ItemEntry
+	// LatestVanillaItemEntries ...
+	LatestVanillaItemEntries() []protocol.ItemEntry
+	// ShieldID ...
+	ShieldID() int32
+	// LatestShieldID ...
+	LatestShieldID() int32
 }
 
 type DefaultItemTranslator struct {
@@ -361,7 +369,9 @@ func (t *DefaultItemTranslator) DowngradeItemPackets(pks []packet.Packet, _ *min
 			pk.HeldItem = t.DowngradeItemInstance(pk.HeldItem)
 		case *packet.InventorySlot:
 			pk.NewItem = t.DowngradeItemInstance(pk.NewItem)
-			pk.StorageItem = t.DowngradeItemInstance(pk.StorageItem)
+			if v, ok := pk.StorageItem.Value(); ok {
+				pk.StorageItem = protocol.Option(t.DowngradeItemInstance(v))
+			}
 		case *packet.InventoryContent:
 			pk.Content = lo.Map(pk.Content, func(item protocol.ItemInstance, _ int) protocol.ItemInstance {
 				return t.DowngradeItemInstance(item)
@@ -396,14 +406,6 @@ func (t *DefaultItemTranslator) DowngradeItemPackets(pks []packet.Packet, _ *min
 					for i2, stack := range recipe.Output {
 						recipe.Output[i2] = t.DowngradeItemStack(stack)
 					}
-					pk.Recipes[i] = recipe
-				case *protocol.FurnaceRecipe:
-					recipe.InputType = t.DowngradeItemType(recipe.InputType)
-					recipe.Output = t.DowngradeItemStack(recipe.Output)
-					pk.Recipes[i] = recipe
-				case *protocol.FurnaceDataRecipe:
-					recipe.InputType = t.DowngradeItemType(recipe.InputType)
-					recipe.Output = t.DowngradeItemStack(recipe.Output)
 					pk.Recipes[i] = recipe
 				case *protocol.ShulkerBoxRecipe:
 					for i2, input := range recipe.Input {
@@ -609,14 +611,28 @@ func (t *DefaultItemTranslator) UpgradeLegacyItemRegistry(entries []proto.Legacy
 }
 
 func (t *DefaultItemTranslator) DowngradeItemEntries(entries []proto.ItemEntry) []proto.ItemEntry {
-	for i, entry := range entries {
+	// Build a new slice rather than mutating in-place. Two bugs in the old
+	// implementation caused v819 to drop with "Server sent broken packet":
+	//   1) removeIndex(entries, i) discarded its return value, so items that
+	//      mapped to Air (unknown to this legacy version) stayed in the slice
+	//      with their original upstream RuntimeID/Name and broke the wire
+	//      stream for every subsequent item.
+	//   2) For known items we kept the upstream's Version and Data fields.
+	//      PMMP 1.26.20 ships items with Version/Data shaped for the latest
+	//      protocol's NBT components; v819 reads the NBT, finds component
+	//      types it doesn't understand and reports the entry as malformed.
+	// The fix: build a new slice, drop Air-mapped items entirely, and for
+	// every kept entry overwrite Version/Data with the legacy mapping's
+	// values (loaded from required_item_list_<proto>.json) so we never leak
+	// upstream's component shape onto the v819 wire.
+	out := make([]proto.ItemEntry, 0, len(entries))
+	for _, entry := range entries {
 		if !entry.ComponentBased {
 			itemType := t.DowngradeItemType(protocol.ItemType{
 				NetworkID:     int32(entry.RuntimeID),
 				MetadataValue: 0,
 			})
 			if itemType.NetworkID == t.mapping.Air() {
-				removeIndex(entries, i)
 				continue
 			}
 			entry.RuntimeID = int16(itemType.NetworkID)
@@ -625,21 +641,35 @@ func (t *DefaultItemTranslator) DowngradeItemEntries(entries []proto.ItemEntry) 
 			if entry.Name, ok = t.mapping.ItemRuntimeIDToName(itemType.NetworkID); !ok {
 				panic(itemType)
 			}
+			// Replace Version and Data with the legacy mapping's known-good
+			// values for this runtime ID. Falls back to Version 2 / nil Data
+			// if the mapping doesn't have an explicit entry, which is the
+			// normal layout for vanilla items in v819.
+			if v, ok := t.mapping.ItemRuntimeIDToVersion(int32(entry.RuntimeID)); ok {
+				entry.Version = int32(v)
+			} else {
+				entry.Version = 2
+			}
+			if d, ok := t.mapping.ItemRuntimeIDToData(int32(entry.RuntimeID)); ok {
+				entry.Data = d
+			} else {
+				entry.Data = nil
+			}
 		} else {
 			t.latest.RegisterEntryRID(entry.Name, int32(entry.RuntimeID), 2, nil)
 			entry.RuntimeID = int16(t.mapping.RegisterEntry(entry.Name))
 		}
-		entries[i] = entry
+		out = append(out, entry)
 	}
 	for rid, i := range t.CustomItems() {
 		name, _ := i.EncodeItem()
-		entries = append(entries, proto.ItemEntry{
+		out = append(out, proto.ItemEntry{
 			Name:           name,
 			RuntimeID:      int16(rid),
 			ComponentBased: true,
 		})
 	}
-	return entries
+	return out
 }
 
 func (t *DefaultItemTranslator) UpgradeItemEntries(entries []proto.ItemEntry) []proto.ItemEntry {
@@ -689,7 +719,9 @@ func (t *DefaultItemTranslator) UpgradeItemPackets(pks []packet.Packet, _ *minec
 			pk.HeldItem = t.UpgradeItemInstance(pk.HeldItem)
 		case *packet.InventorySlot:
 			pk.NewItem = t.UpgradeItemInstance(pk.NewItem)
-			pk.StorageItem = t.UpgradeItemInstance(pk.StorageItem)
+			if v, ok := pk.StorageItem.Value(); ok {
+				pk.StorageItem = protocol.Option(t.UpgradeItemInstance(v))
+			}
 		case *packet.InventoryContent:
 			pk.Content = lo.Map(pk.Content, func(item protocol.ItemInstance, _ int) protocol.ItemInstance {
 				return t.UpgradeItemInstance(item)
@@ -724,14 +756,6 @@ func (t *DefaultItemTranslator) UpgradeItemPackets(pks []packet.Packet, _ *minec
 					for i2, stack := range recipe.Output {
 						recipe.Output[i2] = t.UpgradeItemStack(stack)
 					}
-					pk.Recipes[i] = recipe
-				case *protocol.FurnaceRecipe:
-					recipe.InputType = t.UpgradeItemType(recipe.InputType)
-					recipe.Output = t.UpgradeItemStack(recipe.Output)
-					pk.Recipes[i] = recipe
-				case *protocol.FurnaceDataRecipe:
-					recipe.InputType = t.UpgradeItemType(recipe.InputType)
-					recipe.Output = t.UpgradeItemStack(recipe.Output)
 					pk.Recipes[i] = recipe
 				case *protocol.ShulkerBoxRecipe:
 					for i2, input := range recipe.Input {
@@ -882,6 +906,44 @@ func (t *DefaultItemTranslator) Register(item world.CustomItem, replacement stri
 
 func (t *DefaultItemTranslator) CustomItems() map[int32]world.CustomItem {
 	return t.ridToCustomItem
+}
+
+func (t *DefaultItemTranslator) VanillaItemEntries() []proto.ItemEntry {
+	itemEntries := t.mapping.ItemEntries()
+	entries := make([]proto.ItemEntry, 0, len(itemEntries))
+	for _, e := range itemEntries {
+		entries = append(entries, proto.ItemEntry{
+			Name:           e.Name,
+			RuntimeID:      e.RuntimeID,
+			ComponentBased: e.ComponentBased,
+			Version:        int32(e.Version),
+			Data:           e.Data,
+		})
+	}
+	return entries
+}
+
+func (t *DefaultItemTranslator) LatestVanillaItemEntries() []protocol.ItemEntry {
+	itemEntries := t.latest.ItemEntries()
+	entries := make([]protocol.ItemEntry, 0, len(itemEntries))
+	for _, e := range itemEntries {
+		entries = append(entries, protocol.ItemEntry{
+			Name:           e.Name,
+			RuntimeID:      e.RuntimeID,
+			ComponentBased: e.ComponentBased,
+			Version:        int32(e.Version),
+			Data:           e.Data,
+		})
+	}
+	return entries
+}
+
+func (t *DefaultItemTranslator) ShieldID() int32 {
+	return t.mapping.Shield()
+}
+
+func (t *DefaultItemTranslator) LatestShieldID() int32 {
+	return t.latest.Shield()
 }
 
 func removeIndex[T any](s []T, index int) []T {
