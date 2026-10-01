@@ -14,7 +14,7 @@ import (
 
 func main() {
 	fmt.Println("Downloading vanilla items NBT file...")
-	resp, err := http.Get("https://github.com/df-mc/dragonfly/raw/refs/heads/master/server/world/vanilla_items.nbt")
+	resp, err := http.Get("https://github.com/didntpot/dragonfly/raw/55949d8d1ef85fe224bd37c3f9bbf5b1af00d178/server/world/vanilla_items.nbt")
 	if err != nil {
 		panic(err)
 	}
@@ -56,6 +56,9 @@ func main() {
 			panic(fmt.Errorf("failed to marshal component NBT for item %s: %w", k, err))
 		}
 		data = base64.StdEncoding.EncodeToString(dataBytes)
+		if data == "CgAA" {
+			data = ""
+		}
 		m2[k] = itemEntry{
 			RuntimeID:      int16(v.RuntimeID),
 			ComponentBased: v.ComponentBased,

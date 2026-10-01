@@ -20,7 +20,7 @@ type Command struct {
 	// PermissionLevel is the command permission level that the player required to execute this command. The
 	// field no longer seems to serve a purpose, as the client does not handle the execution of commands
 	// anymore: The permissions should be checked server-side.
-	PermissionLevel string
+	PermissionLevel byte
 	// AliasesOffset is the offset to a CommandEnum that holds the values that
 	// should be used as aliases for this command.
 	AliasesOffset uint32
@@ -37,11 +37,11 @@ func (c *Command) Marshal(r protocol.IO) {
 	r.String(&c.Description)
 	r.Uint16(&c.Flags)
 	if IsProtoGTE(r, ID898) {
-		r.String(&c.PermissionLevel)
+		permissionLevel := commandPermissionToString(c.PermissionLevel)
+		r.String(&permissionLevel)
+		c.PermissionLevel = commandPermissionFromString(permissionLevel)
 	} else {
-		permLevel := byte(0)
-		r.Uint8(&permLevel)
-		c.PermissionLevel = "any"
+		r.Uint8(&c.PermissionLevel)
 	}
 	r.Uint32(&c.AliasesOffset)
 	if IsProtoGTE(r, ID898) {
@@ -213,32 +213,32 @@ func (x *ChainedSubcommandValue) FromLatest(latest protocol.ChainedSubcommandVal
 }
 
 var commandOrigins = []string{
-	protocol.CommandOriginPlayer,
-	protocol.CommandOriginBlock,
-	protocol.CommandOriginMinecartBlock,
-	protocol.CommandOriginDevConsole,
-	protocol.CommandOriginTest,
-	protocol.CommandOriginAutomationPlayer,
-	protocol.CommandOriginClientAutomation,
-	protocol.CommandOriginDedicatedServer,
-	protocol.CommandOriginEntity,
-	protocol.CommandOriginVirtual,
-	protocol.CommandOriginGameArgument,
-	protocol.CommandOriginEntityServer,
-	protocol.CommandOriginPrecompiled,
-	protocol.CommandOriginGameDirectorEntityServer,
-	protocol.CommandOriginScript,
-	protocol.CommandOriginExecutor,
+	"player",
+	"commandblock",
+	"minecartcommandblock",
+	"devconsole",
+	"test",
+	"automationplayer",
+	"clientautomation",
+	"dedicatedserver",
+	"entity",
+	"virtual",
+	"gameargument",
+	"entityserver",
+	"precompiled",
+	"gamedirectorentityserver",
+	"scripting",
+	"executecontext",
 }
 
-func commandOriginFromLegacy(legacy uint32) string {
+func commandOriginToString(legacy uint32) string {
 	if int(legacy) < len(commandOrigins) {
 		return commandOrigins[legacy]
 	}
-	return protocol.CommandOriginPlayer
+	return "player" // Default to player.
 }
 
-func commandOriginToLegacy(origin string) uint32 {
+func commandOriginFromString(origin string) uint32 {
 	for k, v := range commandOrigins {
 		if v == origin {
 			return uint32(k)
@@ -250,11 +250,11 @@ func commandOriginToLegacy(origin string) uint32 {
 // CommandOriginData reads/writes a CommandOrigin x using IO r.
 func CommandOriginData(r protocol.IO, x *protocol.CommandOrigin) {
 	if IsProtoGTE(r, ID898) {
-		r.String(&x.Origin)
+		originStr := commandOriginToString(x.Origin)
+		r.String(&originStr)
+		x.Origin = commandOriginFromString(originStr)
 	} else {
-		v := commandOriginToLegacy(x.Origin)
-		r.Varuint32(&v)
-		x.Origin = commandOriginFromLegacy(v)
+		r.Varuint32(&x.Origin)
 	}
 	r.UUID(&x.UUID)
 	r.String(&x.RequestID)
@@ -309,4 +309,29 @@ func (x *CommandOutputMessage) FromLatest(latest protocol.CommandOutputMessage) 
 	x.Message = latest.Message
 	x.Parameters = latest.Parameters
 	return *x
+}
+
+var commandPermissionLevels = []string{
+	"any",
+	"gamedirectors",
+	"admin",
+	"host",
+	"owner",
+	"internal",
+}
+
+func commandPermissionToString(x byte) string {
+	if int(x) < len(commandPermissionLevels) {
+		return commandPermissionLevels[x]
+	}
+	return "any" // Default to any.
+}
+
+func commandPermissionFromString(s string) byte {
+	for k, v := range commandPermissionLevels {
+		if v == s {
+			return byte(k)
+		}
+	}
+	return byte(0) // Default to any.
 }

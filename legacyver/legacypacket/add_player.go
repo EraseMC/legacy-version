@@ -48,7 +48,7 @@ type AddPlayer struct {
 	// EntityMetadata is a map of entity metadata, which includes flags and data properties that alter in
 	// particular the way the player looks. Flags include ones such as 'on fire' and 'sprinting'.
 	// The metadata values are indexed by their property key.
-	EntityMetadata map[uint32]any
+	EntityMetadata protocol.EntityMetadata
 	// EntityProperties is a list of properties that the entity inhibits. These properties define and alter specific
 	// attributes of the entity.
 	EntityProperties protocol.EntityProperties
@@ -89,4 +89,56 @@ func (pk *AddPlayer) Marshal(io protocol.IO) {
 	protocol.Slice(io, &pk.EntityLinks)
 	io.String(&pk.DeviceID)
 	io.Int32(&pk.BuildPlatform)
+}
+
+// ToLatest ...
+func (pk *AddPlayer) ToLatest() *packet.AddPlayer {
+	entityLinks := make([]protocol.EntityLink, len(pk.EntityLinks))
+	for i, link := range pk.EntityLinks {
+		entityLinks[i] = link.ToLatest()
+	}
+	return &packet.AddPlayer{
+		UUID:             pk.UUID,
+		Username:         pk.Username,
+		EntityRuntimeID:  pk.EntityRuntimeID,
+		PlatformChatID:   pk.PlatformChatID,
+		Position:         pk.Position,
+		Velocity:         pk.Velocity,
+		Pitch:            pk.Pitch,
+		Yaw:              pk.Yaw,
+		HeadYaw:          pk.HeadYaw,
+		HeldItem:         pk.HeldItem,
+		GameType:         pk.GameType,
+		EntityMetadata:   pk.EntityMetadata,
+		EntityProperties: pk.EntityProperties,
+		AbilityData:      pk.AbilityData.ToLatest(),
+		EntityLinks:      entityLinks,
+		DeviceID:         pk.DeviceID,
+		BuildPlatform:    pk.BuildPlatform,
+	}
+}
+
+// FromLatest ...
+func (pk *AddPlayer) FromLatest(latest *packet.AddPlayer) *AddPlayer {
+	pk.UUID = latest.UUID
+	pk.Username = latest.Username
+	pk.EntityRuntimeID = latest.EntityRuntimeID
+	pk.PlatformChatID = latest.PlatformChatID
+	pk.Position = latest.Position
+	pk.Velocity = latest.Velocity
+	pk.Pitch = latest.Pitch
+	pk.Yaw = latest.Yaw
+	pk.HeadYaw = latest.HeadYaw
+	pk.HeldItem = latest.HeldItem
+	pk.GameType = latest.GameType
+	pk.EntityMetadata = latest.EntityMetadata
+	pk.EntityProperties = latest.EntityProperties
+	pk.AbilityData = (&proto.AbilityData{}).FromLatest(latest.AbilityData)
+	pk.EntityLinks = make([]proto.EntityLink, len(latest.EntityLinks))
+	for i, link := range latest.EntityLinks {
+		pk.EntityLinks[i] = (&proto.EntityLink{}).FromLatest(link)
+	}
+	pk.DeviceID = latest.DeviceID
+	pk.BuildPlatform = latest.BuildPlatform
+	return pk
 }

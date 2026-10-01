@@ -80,10 +80,6 @@ func RecipeToLatest(x Recipe) protocol.Recipe {
 		return takePtr(x.ToLatest())
 	case *ShapedChemistryRecipe:
 		return takePtr(x.ToLatest())
-	case *FurnaceRecipe:
-		return takePtr(x.ToLatest())
-	case *FurnaceDataRecipe:
-		return takePtr(x.ToLatest())
 	case *MultiRecipe:
 		return takePtr(x.ToLatest())
 	case *SmithingTransformRecipe:
@@ -106,10 +102,6 @@ func RecipeFromLatest(x protocol.Recipe) Recipe {
 		return (&ShapedRecipe{}).FromLatest(*x)
 	case *protocol.ShapedChemistryRecipe:
 		return (&ShapedChemistryRecipe{}).FromLatest(*x)
-	case *protocol.FurnaceRecipe:
-		return (&FurnaceRecipe{}).FromLatest(*x)
-	case *protocol.FurnaceDataRecipe:
-		return (&FurnaceDataRecipe{}).FromLatest(*x)
 	case *protocol.MultiRecipe:
 		return (&MultiRecipe{}).FromLatest(*x)
 	case *protocol.SmithingTransformRecipe:
@@ -128,10 +120,6 @@ func lookupRecipe(recipeType int32, x *Recipe) bool {
 		*x = &ShapelessRecipe{}
 	case RecipeShaped:
 		*x = &ShapedRecipe{}
-	case RecipeFurnace:
-		*x = &FurnaceRecipe{}
-	case RecipeFurnaceData:
-		*x = &FurnaceDataRecipe{}
 	case RecipeMulti:
 		*x = &MultiRecipe{}
 	case RecipeShulkerBox:
@@ -158,10 +146,6 @@ func lookupRecipeType(x Recipe, recipeType *int32) bool {
 		*recipeType = RecipeShapeless
 	case *ShapedRecipe:
 		*recipeType = RecipeShaped
-	case *FurnaceRecipe:
-		*recipeType = RecipeFurnace
-	case *FurnaceDataRecipe:
-		*recipeType = RecipeFurnaceData
 	case *MultiRecipe:
 		*recipeType = RecipeMulti
 	case *ShulkerBoxRecipe:
@@ -264,25 +248,6 @@ type ShapedRecipe struct {
 // Education Edition. It functions the same as a normal ShapedRecipe.
 type ShapedChemistryRecipe struct {
 	ShapedRecipe
-}
-
-// FurnaceRecipe is a recipe that is specifically used for all kinds of furnaces. These recipes don't just
-// apply to furnaces, but also blast furnaces and smokers.
-type FurnaceRecipe struct {
-	// InputType is the item type of the input item. The metadata value of the item is not used in the
-	// FurnaceRecipe. Use FurnaceDataRecipe to allow an item with only one metadata value.
-	InputType protocol.ItemType
-	// Output is the item that is created as a result of smelting/cooking an item in the furnace.
-	Output protocol.ItemStack
-	// Block is the block name that is required to create the output of the recipe. The block is not prefixed
-	// with 'minecraft:', so it will look like 'furnace' as an example.
-	Block string
-}
-
-// FurnaceDataRecipe is a recipe specifically used for furnace-type crafting stations. It is equal to
-// FurnaceRecipe, except it has an input item with a specific metadata value, instead of any metadata value.
-type FurnaceDataRecipe struct {
-	FurnaceRecipe
 }
 
 // MultiRecipe serves as an 'enable' switch for multi-shape recipes.
@@ -485,69 +450,6 @@ func (recipe *ShapedChemistryRecipe) Marshal(w *Writer) {
 // Unmarshal ...
 func (recipe *ShapedChemistryRecipe) Unmarshal(r *Reader) {
 	marshalShaped(r, &recipe.ShapedRecipe)
-}
-
-// FromLatest ...
-func (recipe *FurnaceRecipe) FromLatest(v protocol.FurnaceRecipe) *FurnaceRecipe {
-	recipe.InputType = v.InputType
-	recipe.Output = v.Output
-	recipe.Block = v.Block
-	return recipe
-}
-
-// ToLatest ...
-func (recipe *FurnaceRecipe) ToLatest() protocol.FurnaceRecipe {
-	return protocol.FurnaceRecipe{
-		InputType: recipe.InputType,
-		Output:    recipe.Output,
-		Block:     recipe.Block,
-	}
-}
-
-// Marshal ...
-func (recipe *FurnaceRecipe) Marshal(w *Writer) {
-	w.Varint32(&recipe.InputType.NetworkID)
-	w.Item(&recipe.Output)
-	w.String(&recipe.Block)
-}
-
-// Unmarshal ...
-func (recipe *FurnaceRecipe) Unmarshal(r *Reader) {
-	r.Varint32(&recipe.InputType.NetworkID)
-	r.Item(&recipe.Output)
-	r.String(&recipe.Block)
-}
-
-// FromLatest ...
-func (recipe *FurnaceDataRecipe) FromLatest(v protocol.FurnaceDataRecipe) *FurnaceDataRecipe {
-	recipe.FurnaceRecipe = *(&FurnaceRecipe{}).FromLatest(v.FurnaceRecipe)
-	return recipe
-}
-
-// ToLatest ...
-func (recipe *FurnaceDataRecipe) ToLatest() protocol.FurnaceDataRecipe {
-	return protocol.FurnaceDataRecipe{
-		FurnaceRecipe: recipe.FurnaceRecipe.ToLatest(),
-	}
-}
-
-// Marshal ...
-func (recipe *FurnaceDataRecipe) Marshal(w *Writer) {
-	w.Varint32(&recipe.InputType.NetworkID)
-	aux := int32(recipe.InputType.MetadataValue)
-	w.Varint32(&aux)
-	w.Item(&recipe.Output)
-	w.String(&recipe.Block)
-}
-
-// Unmarshal ...
-func (recipe *FurnaceDataRecipe) Unmarshal(r *Reader) {
-	var dataValue int32
-	r.Varint32(&recipe.InputType.NetworkID)
-	r.Varint32(&dataValue)
-	recipe.InputType.MetadataValue = uint32(dataValue)
-	r.Item(&recipe.Output)
-	r.String(&recipe.Block)
 }
 
 // FromLatest ...

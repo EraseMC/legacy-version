@@ -48,7 +48,7 @@ type StructureBlockUpdate struct {
 	StructureBlockType int32
 	// Settings is a struct of settings that should be used for exporting the structure. These settings are
 	// identical to the last sent in the StructureBlockUpdate packet by the client.
-	Settings protocol.StructureSettings
+	Settings proto.StructureSettings
 	// RedstoneSaveMode is the mode that should be used to save the structure when used with redstone. In
 	// Java Edition, this is always stored in memory, but in Bedrock Edition it can be stored either to disk
 	// or memory. See the constants above for the options.
@@ -66,7 +66,11 @@ func (*StructureBlockUpdate) ID() uint32 {
 }
 
 func (pk *StructureBlockUpdate) Marshal(io protocol.IO) {
-	io.UBlockPos(&pk.Position)
+	if proto.IsProtoGTE(io, proto.ID944) {
+		io.BlockPos(&pk.Position)
+	} else {
+		proto.UBlockPos(io, &pk.Position)
+	}
 	io.String(&pk.StructureName)
 	if proto.IsProtoGTE(io, proto.ID776) {
 		io.String(&pk.FilteredStructureName)
@@ -79,4 +83,37 @@ func (pk *StructureBlockUpdate) Marshal(io protocol.IO) {
 	io.Varint32(&pk.RedstoneSaveMode)
 	io.Bool(&pk.ShouldTrigger)
 	io.Bool(&pk.Waterlogged)
+}
+
+// ToLatest ...
+func (pk *StructureBlockUpdate) ToLatest() *packet.StructureBlockUpdate {
+	return &packet.StructureBlockUpdate{
+		Position:              pk.Position,
+		StructureName:         pk.StructureName,
+		FilteredStructureName: pk.FilteredStructureName,
+		DataField:             pk.DataField,
+		IncludePlayers:        pk.IncludePlayers,
+		ShowBoundingBox:       pk.ShowBoundingBox,
+		StructureBlockType:    pk.StructureBlockType,
+		Settings:              pk.Settings.ToLatest(),
+		RedstoneSaveMode:      pk.RedstoneSaveMode,
+		ShouldTrigger:         pk.ShouldTrigger,
+		Waterlogged:           pk.Waterlogged,
+	}
+}
+
+// FromLatest ...
+func (pk *StructureBlockUpdate) FromLatest(latest *packet.StructureBlockUpdate) *StructureBlockUpdate {
+	pk.Position = latest.Position
+	pk.StructureName = latest.StructureName
+	pk.FilteredStructureName = latest.FilteredStructureName
+	pk.DataField = latest.DataField
+	pk.IncludePlayers = latest.IncludePlayers
+	pk.ShowBoundingBox = latest.ShowBoundingBox
+	pk.StructureBlockType = latest.StructureBlockType
+	pk.Settings = pk.Settings.FromLatest(latest.Settings)
+	pk.RedstoneSaveMode = latest.RedstoneSaveMode
+	pk.ShouldTrigger = latest.ShouldTrigger
+	pk.Waterlogged = latest.Waterlogged
+	return pk
 }

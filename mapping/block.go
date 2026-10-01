@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	"github.com/akmalfairuz/legacy-version/internal"
-
 	"github.com/df-mc/worldupgrader/blockupgrader"
 	"github.com/sandertv/gophertunnel/minecraft/nbt"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
@@ -25,6 +24,7 @@ type Block interface {
 	Adjust([]protocol.BlockEntry)
 	Air() uint32
 	InfoUpdate() uint32
+	Hash() uint64
 }
 
 type DefaultBlockMapping struct {
@@ -41,9 +41,15 @@ type DefaultBlockMapping struct {
 
 	// infoUpdateRID is the runtime ID of the info_update block in the latest version of the game.
 	infoUpdateBlockRID uint32
+
+	// registryHash is the hash of the block registry, used for caching purposes.
+	registryHash uint64
 }
 
 func NewBlockMapping(raw []byte) *DefaultBlockMapping {
+	// compute registry hash
+	registryHash := fnv1.HashBytes64(raw)
+
 	dec := nbt.NewDecoder(bytes.NewBuffer(raw))
 
 	var states []blockupgrader.BlockState
@@ -83,6 +89,7 @@ func NewBlockMapping(raw []byte) *DefaultBlockMapping {
 		runtimeIDToState:   runtimeIDToState,
 		airRID:             *airRID,
 		infoUpdateBlockRID: *infoUpdateBlockRID,
+		registryHash:       registryHash,
 	}
 }
 
@@ -150,4 +157,8 @@ func (m *DefaultBlockMapping) Air() uint32 {
 
 func (m *DefaultBlockMapping) InfoUpdate() uint32 {
 	return m.infoUpdateBlockRID
+}
+
+func (m *DefaultBlockMapping) Hash() uint64 {
+	return m.registryHash
 }

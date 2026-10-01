@@ -21,6 +21,12 @@ const (
 	TextTypeObjectAnnouncement
 )
 
+const (
+	TextCategoryMessageOnly = iota
+	TextCategoryAuthoredMessage
+	TextCategoryMessageWithParameters
+)
+
 // Text is sent by the client to the server to send chat messages, and by the server to the client to forward
 // or send messages, which may be chat, popups, tips etc.
 type Text struct {
@@ -65,14 +71,34 @@ func (pk *Text) Marshal(io protocol.IO) {
 	io.Bool(&pk.NeedsTranslation)
 	if proto.IsProtoGTE(io, proto.ID898) {
 		var categoryType uint8
-		if pk.TextType == TextTypeRaw || pk.TextType == TextTypeTip || pk.TextType == TextTypeSystem || pk.TextType == TextTypeObjectWhisper || pk.TextType == TextTypeObjectAnnouncement || pk.TextType == TextTypeObject {
-			categoryType = protocol.TextCategoryMessageOnly
-		} else if pk.TextType == TextTypeChat || pk.TextType == TextTypeWhisper || pk.TextType == TextTypeAnnouncement {
-			categoryType = protocol.TextCategoryAuthoredMessage
-		} else {
-			categoryType = protocol.TextCategoryMessageWithParameters
+		switch pk.TextType {
+		case TextTypeRaw, TextTypeTip, TextTypeSystem, TextTypeObjectWhisper, TextTypeObjectAnnouncement, TextTypeObject:
+			categoryType = TextCategoryMessageOnly
+		case TextTypeChat, TextTypeWhisper, TextTypeAnnouncement:
+			categoryType = TextCategoryAuthoredMessage
+		default:
+			categoryType = TextCategoryMessageWithParameters
 		}
-		io.TextCategory(&categoryType)
+		io.Uint8(&categoryType)
+		if proto.IsProtoLT(io, proto.ID924) {
+			switch categoryType {
+			case TextCategoryMessageOnly:
+				proto.IOStringConst(io, "raw")
+				proto.IOStringConst(io, "tip")
+				proto.IOStringConst(io, "systemMessage")
+				proto.IOStringConst(io, "textObjectWhisper")
+				proto.IOStringConst(io, "textObjectAnnouncement")
+				proto.IOStringConst(io, "textObject")
+			case TextCategoryAuthoredMessage:
+				proto.IOStringConst(io, "chat")
+				proto.IOStringConst(io, "whisper")
+				proto.IOStringConst(io, "announcement")
+			default:
+				proto.IOStringConst(io, "translate")
+				proto.IOStringConst(io, "popup")
+				proto.IOStringConst(io, "jukeboxPopup")
+			}
+		}
 		io.Uint8(&pk.TextType)
 	}
 	switch pk.TextType {

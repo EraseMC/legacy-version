@@ -3,6 +3,9 @@ package proto
 import (
 	"fmt"
 
+	"github.com/go-gl/mathgl/mgl32"
+	"github.com/google/uuid"
+	"github.com/samber/lo"
 	"github.com/sandertv/gophertunnel/minecraft/protocol"
 )
 
@@ -84,7 +87,11 @@ func PlayerInventoryAction(io protocol.IO, x *protocol.UseItemTransactionData) {
 	if IsProtoGTE(io, ID712) {
 		io.Varuint32(&x.TriggerType)
 	}
-	io.BlockPos(&x.BlockPosition)
+	if IsProtoGTE(io, ID944) {
+		io.BlockPos(&x.BlockPosition)
+	} else {
+		UBlockPos(io, &x.BlockPosition)
+	}
 	io.Varint32(&x.BlockFace)
 	io.Varint32(&x.HotBarSlot)
 	io.ItemInstance(&x.HeldItem)
@@ -131,4 +138,42 @@ func IORecipe(io protocol.IO, recipe *Recipe) {
 		io.Varint32(&recipeType)
 		(*recipe).Marshal(io.(*Writer))
 	}
+}
+
+func IOStringConst(io protocol.IO, s string) {
+	io.String(&s)
+}
+
+func IOStringUUID(io protocol.IO, x *uuid.UUID) {
+	if IsWriter(io) {
+		io.String(lo.ToPtr(x.String()))
+		return
+	}
+	var s string
+	io.String(&s)
+	parsed, err := uuid.Parse(s)
+	if err != nil {
+		*x = uuid.Nil
+		return
+	}
+	*x = parsed
+}
+
+func IOSoundPos(io protocol.IO, x *mgl32.Vec3) {
+	if IsWriter(io) {
+		b := protocol.BlockPos{int32((*x)[0] * 8), int32((*x)[1] * 8), int32((*x)[2] * 8)}
+		if IsProtoGTE(io, ID944) {
+			io.BlockPos(&b)
+		} else {
+			UBlockPos(io, &b)
+		}
+		return
+	}
+	var b protocol.BlockPos
+	if IsProtoGTE(io, ID944) {
+		io.BlockPos(&b)
+	} else {
+		UBlockPos(io, &b)
+	}
+	*x = mgl32.Vec3{float32(b[0]) / 8, float32(b[1]) / 8, float32(b[2]) / 8}
 }

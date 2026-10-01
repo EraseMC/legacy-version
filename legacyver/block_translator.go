@@ -53,6 +53,10 @@ func (t *DefaultBlockTranslator) BlockMapping() mapping.Block {
 }
 
 func (t *DefaultBlockTranslator) DowngradeLevelChunk(pk *packet.LevelChunk) error {
+	if t.latest.Hash() == t.mapping.Hash() {
+		// The block mapping is the same, no need to translate.
+		return nil
+	}
 	count := int(pk.SubChunkCount)
 	if count == protocol.SubChunkRequestModeLimitless || count == protocol.SubChunkRequestModeLimited {
 		return nil
